@@ -1,8 +1,8 @@
 var name,
     connectedUser;
 
-var connection = new WebSocket('wss://192.168.43.221:443');
-
+//var connection = new WebSocket('wss://10.0.2.116:443');
+var connection = new WebSocket('wss://192.168.1.116:443/websocket');
 connection.onopen = function () {
   console.log("Connected");
 };

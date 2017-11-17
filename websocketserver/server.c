@@ -3,6 +3,10 @@
 #include <libwebsockets.h>
 #include <jansson.h>
 
+int parseWsMessage(char *msg, int len);
+#define WS_MSG_MAX_SIZE 512
+static void *wsMsgBuffer = NULL;
+
 static int callback_http(
 	struct lws *wsi,
 	enum lws_callback_reasons reason,
@@ -10,10 +14,6 @@ static int callback_http(
 	void *input,
 	size_t len)
 {
-
-	json_t *root;
-	json_error_t error;
-
 	switch (reason) 
 	{
 		case LWS_CALLBACK_ESTABLISHED:
@@ -21,23 +21,7 @@ static int callback_http(
 			break;
 		case LWS_CALLBACK_RECEIVE:
 			printf("Received: %s\n", (char *)input);
-			root = json_loads(input, 0, &error);
-			if (!root)
-			{
-				printf("Error on parsing JSON line: %d, text: %s \n", error.line, error.text); 
-			}
-			else
-			{
-				json_t *type = json_object_get(root, "type");
-				const char *type_text = NULL;
-				if (type != NULL)
-				{
-					type_text = json_string_value(type);
-					printf("Type of command : %s\n", type_text);
-				}
-			}
-			
-			json_decref(root);
+			parseWsMessage((char *)input, len);
 			break;
 		case LWS_CALLBACK_CLOSED:
 			printf("Connection Closed\n");
@@ -92,6 +76,8 @@ int main()
 	contextInfo.ka_probes = 5;
 	contextInfo.ka_interval = 30;
 	
+	wsMsgBuffer = malloc(WS_MSG_MAX_SIZE*sizeof(char));
+	
 	struct lws_context *context = lws_create_context(&contextInfo);
 	
 	while(1)
@@ -104,3 +90,45 @@ int main()
 	return 0;
 }
 
+
+int parseWsMessage(char *msg, int len)
+{
+	int ret = 0;
+	json_error_t error;
+
+	if (len >= WS_MSG_MAX_SIZE)
+	{
+		printf("Message too big %d\n", len);
+		ret = -1;
+	}
+	else
+	{
+		memset(wsMsgBuffer, 0, WS_MSG_MAX_SIZE*sizeof(char));
+		memcpy(wsMsgBuffer, msg, len);
+	}
+
+	json_t *root = json_loads(wsMsgBuffer, 0, &error);
+	if (!root)
+	{
+		printf("Error on parsing JSON line: %d, text: %s \n", error.line, error.text); 
+	}
+	else
+	{
+		json_t *type = json_object_get(root, "type");
+		const char *type_text = NULL;
+		int type_int;
+		if (type != NULL)
+		{
+			type_int = json_integer_value(type);
+			printf("Type of command : %d\n", type_int);
+		}
+		else
+		{
+			printf("Cannot find type in %s\n", wsMsgBuffer);
+		}
+	}
+	
+	json_decref(root);
+	
+	return ret;
+}

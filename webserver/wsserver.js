@@ -1,7 +1,7 @@
 console.log("Server started");
 var Msg = '';
 var WebSocketServer = require('ws').Server
-var wss = new WebSocketServer({port: 8010});
+var wss = new WebSocketServer({port: 8020});
 var users = {};
 
 

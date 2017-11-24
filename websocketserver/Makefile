@@ -1,6 +1,6 @@
 CC=gcc
 LIBS=-libwebsockets
-OBJS = server.o
+OBJS = ws_server.o
 
 all: $(OBJS)
 	gcc -Wall -o wss -ljansson -lwebsockets $(OBJS)

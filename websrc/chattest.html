@@ -1,0 +1,65 @@
+<html>
+<head>
+<script language="javascript">
+var connection = new WebSocket('wss://220.220.10.110:443/websocket');
+connection.onopen = function () {
+  console.log("Connected");
+  connection.send('{"type":1, "value":"FromHTML"}'); 
+
+};
+
+
+// Handle all messages through this callback
+connection.onmessage = function (message) {
+  console.log("Got message", message.data);
+
+	gebi("chatSummary").textContent += message.data;
+
+ /* var data = JSON.parse(message.data);
+  
+
+  switch(data.type) {
+    case 1:
+      onLogin(data.success);
+      break;
+    case "offer":
+      onOffer(data.offer, data.name);
+      break;
+    case "answer":
+      onAnswer(data.answer);
+      break;
+    case "candidate":
+      onCandidate(data.candidate);
+      break;
+    case "leave":
+      onLeave();
+      break;
+    default:
+      break;
+  }
+  */
+};
+
+var sendMessage = function()
+{
+	connection.send('{"type":3, "from":"HTMLCB", "value":"' + gebi("inputText").value + '"}');
+}
+
+var gebi = function(id)
+{
+	return document.getElementById(id);
+}
+
+</script>
+</head>
+<body>
+	<table>
+		<tr>
+			<td><input type="text" id="inputText" /><input type="button" value="Send" onclick="sendMessage();"/></td>
+		</tr>
+		<tr>
+			<td id="chatSummary"></td>
+		</tr>
+	</table>
+</body>
+</html>

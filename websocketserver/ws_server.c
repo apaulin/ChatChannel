@@ -45,10 +45,10 @@ static int callback_http(
 			parseWsMessage((int *)user, (char *)input, len);
 			break;
 		case LWS_CALLBACK_SERVER_WRITEABLE:
-			printf("Writing to %s\n", connections[*index].username);
+			printf("Writing to %d %s : %s\n", chatMessageIndex, connections[*index].username, chatMessages[chatMessageIndex].message);
 			unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 			unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-			int size = sprintf((char *)text, chatMessages[chatMessageIndex].message);
+			int size = sprintf((char *)text, "{\"type\":\"4\", \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[chatMessageIndex].from, chatMessages[chatMessageIndex].message);
 			lws_write(wsi, text, size, LWS_WRITE_TEXT);
 			break;
 		case LWS_CALLBACK_CLOSED:
@@ -151,6 +151,7 @@ int main()
 	for(i=0; i < 10; i++)
 	{
 		chatMessages[i].id = -1;
+		chatMessages[i].from[0] = 0;
 		chatMessages[i].message[0] = 0;
 	}
 	
@@ -219,7 +220,11 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 	{
 		json_t *type = json_object_get(root, "type");
 		json_t *value = NULL;
+		json_t *from = NULL;
+
 		const char *valueStr = NULL;
+		const char *fromStr = NULL;
+
 		//const char *type_text = NULL;
 		int type_int;
 		if (type != NULL)
@@ -252,12 +257,21 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					chatMessageIndex++;
 					chatMessageIndex = chatMessageIndex%10;
 					chatMessages[chatMessageIndex].id = ++chatMessageCounter;
+					value = json_object_get(root, "value");
+					from = json_object_get(root, "from");
 					valueStr = json_string_value(value);
+					printf("Got %s\n", valueStr);
+					fromStr = json_string_value(from);
+					printf("Got %s\n", fromStr);
+					printf("Got %s\n", valueStr);
 					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
+					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
+					printf("Parsing message request in slot %d --> %s.\n", chatMessageIndex, chatMessages[chatMessageIndex].message);
 					for(i = 0; i < 10; i++)
 					{
 						if (connections[i].status == CONN_LOGIN)
 						{
+							
 							lws_callback_on_writable(connections[i].wsi);
 						}
 					}

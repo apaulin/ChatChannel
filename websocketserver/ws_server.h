@@ -5,7 +5,8 @@
 typedef enum {
 	MSG_LOGIN = 1,
 	MSG_CONNECT_TO_MASTER,
-	MSG_CHAT_MESSAGE
+	MSG_CHAT_MESSAGE,
+	MSG_CHAT_MESSAGE_PROPAGATE
 } MSG_TYPE;
 
 typedef enum {
@@ -28,6 +29,7 @@ typedef struct {
 
 typedef struct {
 	int id;
+	char from[32];
 	char message[256];
 } chatMessage;
 

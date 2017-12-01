@@ -83,7 +83,7 @@ void sendMessage(struct lws *wsi, int userIndex, int messageIndex)
 		printf("Writing to %d : %s\n", userIndex, chatMessages[messageIndex].message);
 		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":4, \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[messageIndex].from, chatMessages[messageIndex].message);
+		int size = sprintf((char *)text, "{\"type\":3, \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[messageIndex].from, chatMessages[messageIndex].message);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
 		usleep(100000);
 }
@@ -275,7 +275,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					value = json_object_get(root, "value");
 					valueStr = json_string_value(value);
 					printf("Synching with Server %s\n", valueStr);
-					startWsClient(valueStr, 8011);
+					startWsClient(valueStr, 8010);
 					break;
 				case MSG_CHAT_MESSAGE:
 					chatMessageIndex++;
@@ -337,8 +337,8 @@ int startWsClient(const char *serverIp, int serverPort)
 	struct lws_client_connect_info connectInfo;
 	memset(&connectInfo, 0, sizeof(connectInfo));
 	connectInfo.context = clientContext;
-	connectInfo.address = "127.0.0.1";
-	connectInfo.port = 8020;
+	connectInfo.address = serverIp;
+	connectInfo.port = serverPort;
 	connectInfo.path = "/";
 	connectInfo.host = lws_canonical_hostname(clientContext);
 	connectInfo.origin = "origin";

@@ -215,8 +215,8 @@ int startWsClient(const char *serverIp, int serverPort)
 	struct lws_client_connect_info connectInfo;
 	memset(&connectInfo, 0, sizeof(connectInfo));
 	connectInfo.context = clientContext;
-	connectInfo.address = "127.0.0.1";
-	connectInfo.port = 8020;
+	connectInfo.address = serverIp;
+	connectInfo.port = 8010;
 	connectInfo.path = "/";
 	connectInfo.host = lws_canonical_hostname(clientContext);
 	connectInfo.origin = "origin";

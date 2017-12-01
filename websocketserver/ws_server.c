@@ -7,6 +7,7 @@
 static void *wsMsgBuffer = NULL;
 static struct lws_context *clientContext = NULL;
 static struct lws *clientWebsocket = NULL;
+static enum CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
 
 static connectionInfo connections[10];
 static chatMessage chatMessages[10];
@@ -107,9 +108,22 @@ static int callback_client_http(
 		case LWS_CALLBACK_CLOSED:
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			printf("Client Connection Closed\n");
+			clientWebsocketStatus = CONN_DISCONNECTED;
 			break;
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
-			sendMessage(wsi, -1, chatMessageIndex);
+			if (clientWebsocketStatus == CONN_INIT)
+			{
+				unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+				unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+				int size = sprintf((char *)text, "{\"type\":1,\"value\":\"%s\"}", "SlaveClient");
+				lws_write(wsi, text, size, LWS_WRITE_TEXT);
+				clientWebsocketStatus = CONN_LOGIN;			
+			}
+			else
+			{
+				sendMessage(wsi, -1, chatMessageIndex);
+			}
+			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
 			break;
 		default:

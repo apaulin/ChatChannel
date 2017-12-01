@@ -9,6 +9,7 @@ typedef enum {
 } MSG_TYPE;
 
 typedef enum {
+	CONN_DISCONNECTED = NULL;
 	CONN_INIT = 1,
 	CONN_LOGIN,
 	CONN_END,

@@ -1,23 +1,56 @@
 <html>
 <head>
 <script language="javascript">
-var connection = new WebSocket('wss://220.220.10.110:443/websocket');
-connection.onopen = function () {
-  console.log("Connected");
-  connection.send('{"type":1, "value":"FromHTML"}'); 
+var connection = null;
+
+
+var sendLogin = function()
+{
+	var ip = location.host;
+	var wssPort = ":443";
+	
+	var portCfg = window.location.search.match(/\:(\d+)/);
+	if (portCfg == null)
+	{
+		wssPort = "";
+	}
+	//alert(ip);
+	if (gebi("loginText").value != "")
+	{
+		connection = new WebSocket('wss://' + ip + wssPort + '/websocket');
+		connection.onopen = function () {
+			console.log("Connected");
+			connection.send('{"type":1, "value":"'+ gebi("loginText").value +'"}'); 
+			gebi("sendTextButton").disabled = false;
+			gebi("loginButton").disabled = true;
+			gebi("loginText").disabled = true;
+			connection.onmessage = function (message) {
+			  console.log("Got message", message.data);
+			   
+				var t  = gebi("chatSummary");
+				var data = JSON.parse(message.data);
+			 
+				var r = t.insertRow(-1);
+				var c = r.insertCell(-1);
+				c.textContent = data.from;
+				
+				c = r.insertCell(-1);
+				c.textContent = data.value;
+			};
+		};
+		
+	}
+	else
+	{
+		alert("Please enter a name before login in.");
+	}
 
 };
 
 
 // Handle all messages through this callback
-connection.onmessage = function (message) {
-  console.log("Got message", message.data);
-
-	gebi("chatSummary").textContent += message.data;
-
- /* var data = JSON.parse(message.data);
   
-
+/*
   switch(data.type) {
     case 1:
       onLogin(data.success);
@@ -38,11 +71,15 @@ connection.onmessage = function (message) {
       break;
   }
   */
-};
 
 var sendMessage = function()
 {
-	connection.send('{"type":3, "from":"HTMLCB", "value":"' + gebi("inputText").value + '"}');
+	connection.send('{"type":3, "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
+}
+
+var connectToMaster = function()
+{
+	connection.send('{"type":2, "value":"127.0.0.1"}');
 }
 
 var gebi = function(id)
@@ -50,15 +87,24 @@ var gebi = function(id)
 	return document.getElementById(id);
 }
 
+
+
 </script>
 </head>
 <body>
 	<table>
 		<tr>
-			<td><input type="text" id="inputText" /><input type="button" value="Send" onclick="sendMessage();"/></td>
+			<td><input type="text" id="loginText" /><input type="button" value="Login" id="loginButton" onclick="sendLogin();"/></td>
+		</tr>
+		TODO : Connecti to master type 2 with IP address
+		<tr>
+			<td><input type="text" id="inputText" /><input type="button" value="Send Message" id="sendTextButton" disabled onclick="sendMessage();"/></td>
 		</tr>
 		<tr>
-			<td id="chatSummary"></td>
+			<td><table id="chatSummary"></table></td>
+		</tr>
+		<tr>
+			<td><input type="button" value="Connect To Master" onclick="connectToMaster();"</td>
 		</tr>
 	</table>
 </body>

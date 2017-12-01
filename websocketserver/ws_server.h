@@ -36,6 +36,7 @@ typedef struct {
 
 int parseWsMessage(int *userIndex, char *msg, int len);
 int startWsClient(const char *serverIp, int serverPort);
+void sendMessage(struct lws *wsi, int index, int messageIndex);
 
 
 

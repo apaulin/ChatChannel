@@ -7,7 +7,7 @@
 static void *wsMsgBuffer = NULL;
 static struct lws_context *clientContext = NULL;
 static struct lws *clientWebsocket = NULL;
-static enum CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
+static CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
 
 static connectionInfo connections[10];
 static chatMessage chatMessages[10];

@@ -85,7 +85,7 @@ void sendMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE mess
 		printf("Writing to %d : %s\n", userIndex, chatMessages[messageIndex].message);
 		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[messageIndex].from, chatMessages[messageIndex].message);
+		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\"}", messageType, chatMessages[messageIndex].from, chatMessages[messageIndex].message);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
 		usleep(100000);
 }
@@ -313,7 +313,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					{
 						if (connections[i].status == CONN_LOGIN)
 						{
-							if (type_int == MSG_CHAT_PROPAGATE || i != *connIndex)
+							if (type_int == MSG_CHAT_MESSAGE || i != *connIndex)
 							{
 								lws_callback_on_writable(connections[i].wsi);
 							}

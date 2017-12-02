@@ -311,6 +311,10 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 							
 							lws_callback_on_writable(connections[i].wsi);
 						}
+						else
+						{
+							printf("Connection slot %d is in %d\n", i, connections[i].status);
+						}
 					}
 					if (clientWebsocket != NULL)
 					{

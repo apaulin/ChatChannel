@@ -44,14 +44,14 @@ static int callback_http(
 			{
 				if (chatMessages[i].id != -1)
 				{
-					sendMessage(wsi, *index, i);
+					sendMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
 				}
 			}
 			for(i = 0; i <= chatMessageIndex;i++)
 			{
 				if (chatMessages[i].id != -1)
 				{
-					sendMessage(wsi, *index, i);
+					sendMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
 				}
 			}
 			break;
@@ -60,7 +60,8 @@ static int callback_http(
 			parseWsMessage((int *)user, (char *)input, len);
 			break;
 		case LWS_CALLBACK_SERVER_WRITEABLE:
-			sendMessage(wsi, *index, chatMessageIndex);
+			printf("LWS_CALLBACK_SERVER_WRITEABLE\n");
+			sendMessage(wsi, *index, chatMessageIndex, MSG_CHAT_MESSAGE);
 			break;
 		case LWS_CALLBACK_CLOSED:
 			printf("Connection Closed %d\n", *index);
@@ -79,12 +80,12 @@ static int callback_http(
 
 }
 
-void sendMessage(struct lws *wsi, int userIndex, int messageIndex)
+void sendMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE messageType)
 {
 		printf("Writing to %d : %s\n", userIndex, chatMessages[messageIndex].message);
 		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":3, \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[messageIndex].from, chatMessages[messageIndex].message);
+		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\"}", chatMessages[messageIndex].from, chatMessages[messageIndex].message);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
 		usleep(100000);
 }
@@ -96,10 +97,13 @@ static int callback_client_http(
 	void *input,
 	size_t len)
 {
+	int *index = (int *)user;
 	switch (reason) 
 	{
+		case LWS_CALLBACK_CLIENT_ESTABLISHED:
 		case LWS_CALLBACK_ESTABLISHED:
 			printf("Client New connection Established \n");
+			*index = -1;
 			break;
 		case LWS_CALLBACK_CLIENT_RECEIVE:
 			printf("Client Received: %s\n", (char *)input);
@@ -121,7 +125,7 @@ static int callback_client_http(
 			}
 			else
 			{
-				sendMessage(wsi, -1, chatMessageIndex);
+				sendMessage(wsi, -1, chatMessageIndex, MSG_CHAT_PROPAGATE);
 			}
 			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
@@ -155,7 +159,7 @@ static struct lws_protocols clientProtocols[] =
 	{
 		"http-only",
 		&callback_client_http,
-		0,
+		sizeof(int),
 		0
 	},
 	{
@@ -292,6 +296,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					startWsClient(valueStr, 8010);
 					break;
 				case MSG_CHAT_MESSAGE:
+				case MSG_CHAT_PROPAGATE:
 					chatMessageIndex++;
 					chatMessageIndex = chatMessageIndex%10;
 					chatMessages[chatMessageIndex].id = ++chatMessageCounter;
@@ -308,17 +313,25 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					{
 						if (connections[i].status == CONN_LOGIN)
 						{
-							
-							lws_callback_on_writable(connections[i].wsi);
+							if (type_int == MSG_CHAT_PROPAGATE || i != *connIndex)
+							{
+								lws_callback_on_writable(connections[i].wsi);
+							}
 						}
 						else
 						{
 							printf("Connection slot %d is in %d\n", i, connections[i].status);
 						}
 					}
-					if (clientWebsocket != NULL)
+					printf("Exiting regular connection, checking connection to server. %d\n", (int)connIndex);
+					if (clientWebsocket != NULL && *connIndex != -1)
 					{
+						printf("Forwarding message to master\n");
 						lws_callback_on_writable(clientWebsocket);
+					}
+					else if (*connIndex == -1)
+					{
+						printf("Message was from Master, no need to forward it.\n");
 					}
 					
 					break;
@@ -363,6 +376,9 @@ int startWsClient(const char *serverIp, int serverPort)
 	connectInfo.protocol = clientProtocols[0].name;
 	printf("Connecting Client Websocket\n");
 	clientWebsocket = lws_client_connect_via_info(&connectInfo);
+	clientWebsocketStatus = CONN_INIT;
+	lws_callback_on_writable(clientWebsocket);
+	
 	
 	return ret;
 }

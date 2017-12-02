@@ -5,7 +5,8 @@
 typedef enum {
 	MSG_LOGIN = 1,
 	MSG_CONNECT_TO_MASTER,
-	MSG_CHAT_MESSAGE
+	MSG_CHAT_MESSAGE,
+	MSG_CHAT_PROPAGATE
 } MSG_TYPE;
 
 typedef enum {
@@ -36,7 +37,7 @@ typedef struct {
 
 int parseWsMessage(int *userIndex, char *msg, int len);
 int startWsClient(const char *serverIp, int serverPort);
-void sendMessage(struct lws *wsi, int index, int messageIndex);
+void sendMessage(struct lws *wsi, int index, int messageIndex, MSG_TYPE messageType);
 
 
 

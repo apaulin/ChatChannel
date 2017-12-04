@@ -79,7 +79,7 @@ var sendMessage = function()
 
 var connectToMaster = function()
 {
-	connection.send('{"type":2, "value":"192.168.1.116"}');
+	connection.send('{"type":2, "value":"' + gebi("masterAddress").value + '"}');
 }
 
 var gebi = function(id)
@@ -104,7 +104,7 @@ var gebi = function(id)
 			<td><table id="chatSummary"></table></td>
 		</tr>
 		<tr>
-			<td><input type="button" value="Connect To Master" onclick="connectToMaster();"</td>
+			<td><input type="text" id="masterAddress" value="192.168.0.200" /><input type="button" value="Connect To Master" onclick="connectToMaster();"</td>
 		</tr>
 	</table>
 </body>

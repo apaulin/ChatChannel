@@ -272,7 +272,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 		if (type != NULL)
 		{
 			type_int = json_integer_value(type);
-			printf("Type of command : %d : %s\n", type_int, wsMsgBuffer);
+			printf("Type of command : %d : %s\n", type_int, (char *)wsMsgBuffer);
 			switch (type_int)
 			{
 				case MSG_LOGIN:

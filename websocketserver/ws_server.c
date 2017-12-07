@@ -10,8 +10,8 @@ static struct lws_context *clientContext = NULL;
 static struct lws *clientWebsocket = NULL;
 static CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
 
-static connectionInfo connections[10];
-static chatMessage chatMessages[10];
+static connectionInfo connections[WS_MAX_CONNECTIONS];
+static chatMessage chatMessages[WS_MESSAGE_CACHE_SIZE];
 static int chatMessageCounter = 0;
 static int chatMessageIndex = -1;
 
@@ -33,7 +33,7 @@ static int callback_http(
 			clock_gettime(CLOCK_REALTIME, &ref);
 			sendGenericIntMessage(wsi, (int)MSG_TYPE_REF, ref.tv_sec);
 			
-			for(i = 0; i < 10; i++)
+			for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 			{
 				if(connections[i].status == CONN_NONE)
 				{
@@ -46,7 +46,7 @@ static int callback_http(
 					break;
 				}
 			}
-			for(i = chatMessageIndex+1; i < 10;i++)
+			for(i = chatMessageIndex+1; i < WS_MESSAGE_CACHE_SIZE;i++)
 			{
 				if (chatMessages[i].id != -1)
 				{
@@ -89,17 +89,26 @@ static int callback_http(
 void sendChatMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE messageType)
 {
 		printf("Writing to %d : %s at %d seconds.\n", userIndex, chatMessages[messageIndex].message, chatMessages[messageIndex].time.tv_sec);
-		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + WS_MSG_HEADER_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", messageType, chatMessages[messageIndex].from, chatMessages[messageIndex].message, (unsigned int)chatMessages[messageIndex].time.tv_sec);
+		json_t *msgJson = json_object();
+		json_object_set_new(msgJson, "type", json_integer(3));
+		json_object_set_new(msgJson, "from", json_string(chatMessages[messageIndex].from));
+		json_object_set_new(msgJson, "value", json_string(chatMessages[messageIndex].message));
+		json_object_set_new(msgJson, "time", json_integer((unsigned int)chatMessages[messageIndex].time.tv_sec));
+
+
+		char *msgJsonString = json_dumps(msgJson, JSON_COMPACT);
+		int size = sprintf((char *)text, "%s", msgJsonString);		
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
-		usleep(100000);
+		free(msgJsonString);
+		json_decref(msgJson);
 }
 
 void sendGenericIntMessage(struct lws *wsi, int messageType, long int value)
 {
 		printf("Writing %d : %d at %d seconds.\n", messageType, value);
-		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 		int size = sprintf((char *)text, "{\"type\":%d, \"value\":%d}", messageType, value);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
@@ -190,7 +199,7 @@ static struct lws_protocols clientProtocols[] =
 int main(int argc, char *argv[])
 {
 	int i = 0;
-	for(i = 0 ; i < 10; i++)
+	for(i = 0 ; i < WS_MAX_CONNECTIONS; i++)
 	{
 		connections[i].index = -1;
 		connections[i].status = CONN_NONE;
@@ -200,7 +209,7 @@ int main(int argc, char *argv[])
 		connections[i].wsi = NULL;
 	}
 	
-	for(i=0; i < 10; i++)
+	for(i=0; i < WS_MESSAGE_CACHE_SIZE; i++)
 	{
 		chatMessages[i].id = -1;
 		chatMessages[i].from[0] = 0;
@@ -263,7 +272,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 	if (len >= WS_MSG_MAX_SIZE)
 	{
 		printf("Message too big %d\n", len);
-		ret = -1;
+		return -1;
 	}
 	else
 	{
@@ -316,7 +325,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 				case MSG_CHAT_MESSAGE:
 				case MSG_CHAT_PROPAGATE:
 					chatMessageIndex++;
-					chatMessageIndex = chatMessageIndex%10;
+					chatMessageIndex = chatMessageIndex%WS_MESSAGE_CACHE_SIZE;
 					chatMessages[chatMessageIndex].id = ++chatMessageCounter;
 					value = json_object_get(root, "value");
 					from = json_object_get(root, "from");
@@ -324,7 +333,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					printf("Got %s\n", valueStr);
 					fromStr = json_string_value(from);
 					printf("Got %s\n", fromStr);
-					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
+					strncpy(chatMessages[chatMessageIndex].message, valueStr, 255);
 					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
 					clock_gettime(CLOCK_REALTIME, &chatMessages[chatMessageIndex].time );
 					printf("Parsing message request in slot %d --> %s.%d:%d\n", 
@@ -332,7 +341,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					       chatMessages[chatMessageIndex].message,
 					       chatMessages[chatMessageIndex].time.tv_sec,
 					       chatMessages[chatMessageIndex].time.tv_nsec);
-					for(i = 0; i < 10; i++)
+					for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 					{
 						if (connections[i].status == CONN_LOGIN)
 						{

@@ -1,7 +1,10 @@
 #ifndef __WEBSOCKET_SERVER_H__
 #define __WEBSOCKET_SERVER_H__
 
-#define WS_MSG_MAX_SIZE 512
+#define WS_MSG_MAX_SIZE 256
+#define WS_MSG_HEADER_SIZE 60
+#define WS_MESSAGE_CACHE_SIZE 20
+#define WS_MAX_CONNECTIONS 10
 typedef enum {
 	MSG_LOGIN = 1,
 	MSG_CONNECT_TO_MASTER,
@@ -33,7 +36,7 @@ typedef struct {
 	int id;
 	struct timespec time;
 	char from[32];
-	char message[256];
+	char message[WS_MSG_MAX_SIZE];
 } chatMessage;
 
 

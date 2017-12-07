@@ -28,6 +28,11 @@ static int callback_http(
 	{
 		case LWS_CALLBACK_ESTABLISHED:
 			printf("New connection from Client \n");
+			printf("Sending time reference\n");
+			struct timespec ref;
+			clock_gettime(CLOCK_REALTIME, &ref);
+			sendGenericIntMessage(wsi, (int)MSG_TYPE_REF, ref.tv_sec);
+			
 			for(i = 0; i < 10; i++)
 			{
 				if(connections[i].status == CONN_NONE)
@@ -45,14 +50,14 @@ static int callback_http(
 			{
 				if (chatMessages[i].id != -1)
 				{
-					sendMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
+					sendChatMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
 				}
 			}
 			for(i = 0; i <= chatMessageIndex;i++)
 			{
 				if (chatMessages[i].id != -1)
 				{
-					sendMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
+					sendChatMessage(wsi, *index, i, MSG_CHAT_MESSAGE);
 				}
 			}
 			break;
@@ -62,7 +67,7 @@ static int callback_http(
 			break;
 		case LWS_CALLBACK_SERVER_WRITEABLE:
 			printf("LWS_CALLBACK_SERVER_WRITEABLE\n");
-			sendMessage(wsi, *index, chatMessageIndex, MSG_CHAT_MESSAGE);
+			sendChatMessage(wsi, *index, chatMessageIndex, MSG_CHAT_MESSAGE);
 			break;
 		case LWS_CALLBACK_CLOSED:
 			printf("Connection Closed %d\n", *index);
@@ -81,15 +86,26 @@ static int callback_http(
 
 }
 
-void sendMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE messageType)
+void sendChatMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE messageType)
 {
-		printf("Writing to %d : %s\n", userIndex, chatMessages[messageIndex].message);
+		printf("Writing to %d : %s at %d seconds.\n", userIndex, chatMessages[messageIndex].message, chatMessages[messageIndex].time.tv_sec);
 		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", messageType, chatMessages[messageIndex].from, chatMessages[messageIndex].message, (unsigned int)chatMessages[messageIndex].time.tv_sec);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
 		usleep(100000);
 }
+
+void sendGenericIntMessage(struct lws *wsi, int messageType, long int value)
+{
+		printf("Writing %d : %d at %d seconds.\n", messageType, value);
+		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+		int size = sprintf((char *)text, "{\"type\":%d, \"value\":%d}", messageType, value);
+		lws_write(wsi, text, size, LWS_WRITE_TEXT);
+}
+ 
+
 
 static int callback_client_http(
 	struct lws *wsi,
@@ -114,6 +130,7 @@ static int callback_client_http(
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			printf("Client Connection Closed\n");
 			clientWebsocketStatus = CONN_DISCONNECTED;
+			clientWebsocket = NULL;
 			break;
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
 			if (clientWebsocketStatus == CONN_INIT)
@@ -126,7 +143,7 @@ static int callback_client_http(
 			}
 			else
 			{
-				sendMessage(wsi, -1, chatMessageIndex, MSG_CHAT_PROPAGATE);
+				sendChatMessage(wsi, -1, chatMessageIndex, MSG_CHAT_PROPAGATE);
 			}
 			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
@@ -309,8 +326,12 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					printf("Got %s\n", fromStr);
 					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
 					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
-					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
-					printf("Parsing message request in slot %d --> %s.\n", chatMessageIndex, chatMessages[chatMessageIndex].message);
+					clock_gettime(CLOCK_REALTIME, &chatMessages[chatMessageIndex].time );
+					printf("Parsing message request in slot %d --> %s.%d:%d\n", 
+					       chatMessageIndex, 
+					       chatMessages[chatMessageIndex].message,
+					       chatMessages[chatMessageIndex].time.tv_sec,
+					       chatMessages[chatMessageIndex].time.tv_nsec);
 					for(i = 0; i < 10; i++)
 					{
 						if (connections[i].status == CONN_LOGIN)

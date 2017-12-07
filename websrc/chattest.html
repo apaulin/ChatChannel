@@ -2,7 +2,8 @@
 <head>
 <script language="javascript">
 var connection = null;
-
+var timeRef = 0;
+var dateRef = null;
 
 var sendLogin = function()
 {
@@ -29,16 +30,30 @@ var sendLogin = function()
 			   
 				var t  = gebi("chatSummary");
 				var data = JSON.parse(message.data);
-			 
-				var r = t.insertRow(-1);
-				var c = r.insertCell(-1);
-				c.textContent = data.from;
 				
-				c = r.insertCell(-1);
-				c.textContent = data.time;
+				if (data.type == 5)
+				{
+					timeRef = data.value;
+					dateRef = new Date();
+				}
+				else if (data.type == 3)
+				{
+				 
+					var r = t.insertRow(-1);
+					var c = r.insertCell(-1);
+					c.textContent = data.from;
+					
+					c = r.insertCell(-1);
+					var currentTime = new Date(dateRef.getTime() + (data.time - timeRef) * 1000);
+					c.textContent = twoDigits(currentTime.getHours()) + ":" + twoDigits(currentTime.getMinutes()) + ":" + twoDigits(currentTime.getSeconds());
 
-				c = r.insertCell(-1);
-				c.textContent = data.value;
+					c = r.insertCell(-1);
+					c.textContent = data.value;
+				}
+				else
+				{
+					console.log("Unknown type of data");
+				}
 			};
 		};
 		
@@ -83,6 +98,18 @@ var sendMessage = function()
 var connectToMaster = function()
 {
 	connection.send('{"type":2, "value":"' + gebi("masterAddress").value + '"}');
+}
+
+var twoDigits = function(val)
+{
+	if (val >=0 && val <= 9)
+	{
+		return "0" + val;
+	}
+	else
+	{
+		return val;
+	}
 }
 
 var gebi = function(id)

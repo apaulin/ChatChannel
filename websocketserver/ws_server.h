@@ -30,6 +30,7 @@ typedef struct {
 
 typedef struct {
 	int id;
+	struct timespec time;
 	char from[32];
 	char message[256];
 } chatMessage;

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <libwebsockets.h>
 #include <jansson.h>
+#include <time.h>
 #include "ws_server.h"
 
 static void *wsMsgBuffer = NULL;
@@ -85,7 +86,7 @@ void sendMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE mess
 		printf("Writing to %d : %s\n", userIndex, chatMessages[messageIndex].message);
 		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\"}", messageType, chatMessages[messageIndex].from, chatMessages[messageIndex].message);
+		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", messageType, chatMessages[messageIndex].from, chatMessages[messageIndex].message, (unsigned int)chatMessages[messageIndex].time.tv_sec);
 		lws_write(wsi, text, size, LWS_WRITE_TEXT);
 		usleep(100000);
 }
@@ -308,6 +309,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					printf("Got %s\n", fromStr);
 					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
 					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
+					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
 					printf("Parsing message request in slot %d --> %s.\n", chatMessageIndex, chatMessages[chatMessageIndex].message);
 					for(i = 0; i < 10; i++)
 					{

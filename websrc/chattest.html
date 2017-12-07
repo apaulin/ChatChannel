@@ -35,6 +35,9 @@ var sendLogin = function()
 				c.textContent = data.from;
 				
 				c = r.insertCell(-1);
+				c.textContent = data.time;
+
+				c = r.insertCell(-1);
 				c.textContent = data.value;
 			};
 		};

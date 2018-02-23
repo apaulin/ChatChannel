@@ -2,16 +2,6 @@
 <head>
 <script language="javascript">
 var connection = null;
-var timeRef = 0;
-var dateRef = null;
-
-
-document.addEventListener("keypress", function(e) {
-	if(e.keyCode == 13) 
-	{
-	  gebi("sendTextButton").click(); 
-	}
-});
 
 
 var sendLogin = function()
@@ -34,37 +24,21 @@ var sendLogin = function()
 			gebi("sendTextButton").disabled = false;
 			gebi("loginButton").disabled = true;
 			gebi("loginText").disabled = true;
-			gebi("inputText").maxLength = 255-33-gebi("loginText").value.length;
 			connection.onmessage = function (message) {
 			  console.log("Got message", message.data);
 			   
 				var t  = gebi("chatSummary");
 				var data = JSON.parse(message.data);
+			 
+				var r = t.insertRow(-1);
+				var c = r.insertCell(-1);
+				c.textContent = data.from;
 				
-				if (data.type == 5)
-				{
-					timeRef = data.value;
-					dateRef = new Date();
-				}
-				else if (data.type == 3)
-				{
-				 
-					var r = t.insertRow(-1);
-					var c = r.insertCell(-1);
-					c.textContent = data.from;
-					
-					c = r.insertCell(-1);
-					var currentTime = new Date(dateRef.getTime() + (data.time - timeRef) * 1000);
-					c.textContent = twoDigits(currentTime.getHours()) + ":" + twoDigits(currentTime.getMinutes()) + ":" + twoDigits(currentTime.getSeconds());
+				c = r.insertCell(-1);
+				c.textContent = data.time;
 
-					c = r.insertCell(-1);
-					c.textContent = data.value;
-					window.scrollTo(0,document.body.scrollHeight)
-				}
-				else
-				{
-					console.log("Unknown type of data");
-				}
+				c = r.insertCell(-1);
+				c.textContent = data.value;
 			};
 		};
 		
@@ -103,33 +77,12 @@ var sendLogin = function()
 
 var sendMessage = function()
 {
-	if (gebi("inputText").value.match(/^\s*$/) == null)
-	{
-		var msg = new Object();
-		msg.type = 3
-		msg.from = gebi("loginText").value;
-		msg.value = gebi("inputText").value;
-		
-		connection.send(JSON.stringify(msg, null, 0));
-		gebi("inputText").value = "";
-	}
+	connection.send('{"type":3, "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
 }
 
 var connectToMaster = function()
 {
 	connection.send('{"type":2, "value":"' + gebi("masterAddress").value + '"}');
-}
-
-var twoDigits = function(val)
-{
-	if (val >=0 && val <= 9)
-	{
-		return "0" + val;
-	}
-	else
-	{
-		return val;
-	}
 }
 
 var gebi = function(id)
@@ -144,16 +97,17 @@ var gebi = function(id)
 <body>
 	<table>
 		<tr>
+			<td><input type="text" id="loginText" /><input type="button" value="Login" id="loginButton" onclick="sendLogin();"/></td>
+		</tr>
+		<!-- TODO : Connecti to master type 2 with IP address -->
+		<tr>
+			<td><input type="text" id="inputText" /><input type="button" value="Send Message" id="sendTextButton" disabled onclick="sendMessage();"/></td>
+		</tr>
+		<tr>
 			<td><table id="chatSummary"></table></td>
 		</tr>
 		<tr>
-			<td><input type="text" id="loginText" /><input type="button" value="Login" id="loginButton" onclick="sendLogin();"/></td>
-		</tr>
-		<tr>
-			<td><input type="text" id="inputText" maxlength="234"/><input type="button" value="Send Message" id="sendTextButton" disabled onclick="sendMessage();"/></td>
-		</tr>
-		<tr>
-			<td><input type="text" id="masterAddress" value="192.168.0.200" /><input type="button" value="Connect To Master" onclick="connectToMaster();"</td>
+			<td><input type="text" id="masterAddress" value="192.168.0.200" /><input type="button" value="Connect To Master" onclick="connectToMaster();"/></td>
 		</tr>
 	</table>
 </body>

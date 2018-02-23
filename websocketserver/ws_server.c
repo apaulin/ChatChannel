@@ -13,9 +13,9 @@ static struct lws *clientWebsocket = NULL;
 static CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
 
 static connectionInfo connections[10];
-static chatMessage theChatMessage;
+static chatMessage chatMessages[10];
 static int chatMessageCounter = 0;
-//static int chatMessageIndex = -1;
+static int chatMessageIndex = -1;
 
 
 
@@ -29,7 +29,8 @@ static int callback_http(
 	size_t len)
 {
 	int i=0;
-	int *index = (int *)user;
+	int *connectionIndex = (int *)user;
+	char buffer[256];
 	switch (reason) 
 	{
 		case LWS_CALLBACK_ESTABLISHED:
@@ -38,11 +39,10 @@ static int callback_http(
 			{
 				if(connections[i].status == CONN_NONE)
 				{
-					*index = i;
+					*connectionIndex = i;
 					connections[i].status = CONN_INIT;
 					connections[i].username[0] = 0;
-					connections[i].numberOfText = 0;
-					connections[i].lastMessageReceived = 0;
+					connections[i].lastMessageReceived = chatMessageCounter;
 					connections[i].wsi = wsi;
 					break;
 				}
@@ -54,18 +54,26 @@ static int callback_http(
 			break;
 		case LWS_CALLBACK_SERVER_WRITEABLE:
 			printf("LWS_CALLBACK_SERVER_WRITEABLE\n");
-			sendMessage(wsi, *index, 0, MSG_CHAT_MESSAGE);
+			sendNextMessage(wsi, &connections[*connectionIndex]);
 			break;
 		case LWS_CALLBACK_CLOSED:
+		case LWS_CALLBACK_WSI_DESTROY:
 			printf("Connection Closed %d\n", *index);
-			connections[*index].status = CONN_NONE;
-			connections[*index].wsi = NULL;
-
+			connections[*connectionIndex].status = CONN_NONE;
+			connections[*connectionIndex].wsi = NULL;
+			sprintf(buffer, "%s : has left the chat communication channel.", connections[*connectionIndex].username);
+			for(i = 0; i < 10; i++)
+			{
+				if(connections[i].status == CONN_LOGIN)
+				{
+					sendMessage2(connections[i].wsi, "The Server", buffer, MSG_CHAT_MESSAGE);
+				}
+			}
 			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
 			break;
 		default:
-			//printf ("Callback http %d\n", reason);
+			printf ("Callback http %d\n", reason);
 			break;
 	}
 	
@@ -73,15 +81,35 @@ static int callback_http(
 
 }
 
-void sendMessage(struct lws *wsi, int userIndex, int messageIndex, MSG_TYPE messageType)
+void sendNextMessage(struct lws *wsi, connectionInfo *conn)
 {
-		printf("Writing to %d : %s\n", userIndex, theChatMessage.message);
-		unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
-		unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-		int size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", messageType, theChatMessage.from, theChatMessage.message, (unsigned int)theChatMessage.time.tv_sec);
-		lws_write(wsi, text, size, LWS_WRITE_TEXT);
-		usleep(100000);
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+	int size = 0;
+	
+	
+	chatMessage *cMsg = &chatMessages[conn->lastMessageReceived % 10];
+	conn->lastMessageReceived++;
+	
+	printf("Writing to %s : %s\n", conn->username, cMsg->message);
+	size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", MSG_CHAT_MESSAGE, cMsg->from, cMsg->message, (unsigned int)cMsg->time.tv_sec);
+	lws_write(wsi, text, size, LWS_WRITE_TEXT);
+	usleep(10000);
 }
+
+void sendMessage2(struct lws *wsi, const char *from, const char* msg, MSG_TYPE messageType)
+{
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+	int size = 0;	
+	struct timespec myTime;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &myTime );
+	size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", messageType, from, msg, (unsigned int)myTime.tv_sec);
+	lws_write(wsi, text, size, LWS_WRITE_TEXT);
+	usleep(10000);
+}
+
+
 
 // This callback function is used when this MMR is the client of another radio.
 // It is part of the libwesockets API
@@ -120,7 +148,7 @@ static int callback_client_http(
 			}
 			else
 			{
-				sendMessage(wsi, -1, 0, MSG_CHAT_PROPAGATE);
+				//sendMessage(wsi, -1, 0, MSG_CHAT_PROPAGATE);
 			}
 			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
@@ -188,16 +216,16 @@ int main(int argc, char *argv[])
 		connections[i].wsi = NULL;
 	}
 	
-//	for(i=0; i < 10; i++)
-//	{
-//		chatMessages[i].id = -1;
-//		chatMessages[i].from[0] = 0;
-//		chatMessages[i].message[0] = 0;
-//	}
+	for(i=0; i < 10; i++)
+	{
+		chatMessages[i].id = -1;
+		chatMessages[i].from[0] = 0;
+		chatMessages[i].message[0] = 0;
+	}
 
-		theChatMessage.id = -1;
-		theChatMessage.from[0] = 0;
-		theChatMessage.message[0] = 0;
+		//theChatMessage.id = -1;
+		//theChatMessage.from[0] = 0;
+		//theChatMessage.message[0] = 0;
 
 
 
@@ -296,6 +324,20 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 						printf("Login with value %s\n", valueStr);
 						strncpy(connections[*connIndex].username, valueStr, 32);
 						connections[*connIndex].status = CONN_LOGIN;
+						chatMessageIndex++;
+						chatMessageIndex = chatMessageIndex%10;
+						chatMessages[chatMessageIndex].id = ++chatMessageCounter;
+						strncpy(chatMessages[chatMessageIndex].message, "***NEW CONNECTION***", 256);
+						strncpy(chatMessages[chatMessageIndex].from, valueStr, 32);
+						clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
+						
+						for(i = 0; i < 10; i++)
+						{
+							if (connections[i].status == CONN_LOGIN)
+							{
+								lws_callback_on_writable(connections[i].wsi);
+							}
+						}
 					}
 					else
 					{
@@ -310,19 +352,19 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					break;
 				case MSG_CHAT_MESSAGE:
 				case MSG_CHAT_PROPAGATE:
-					//chatMessageIndex++;
-					//chatMessageIndex = chatMessageIndex%10;
-					theChatMessage.id = ++chatMessageCounter;
+					chatMessageIndex++;
+					chatMessageIndex = chatMessageIndex%10;
+					chatMessages[chatMessageIndex].id = ++chatMessageCounter;
 					value = json_object_get(root, "value");
 					from = json_object_get(root, "from");
 					valueStr = json_string_value(value);
 					printf("Got %s\n", valueStr);
 					fromStr = json_string_value(from);
 					printf("Got %s\n", fromStr);
-					strncpy(theChatMessage.message, valueStr, 256);
-					strncpy(theChatMessage.from, fromStr, 32);
-					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &theChatMessage.time );
-					printf("Parsing message request in slot %d --> %s.\n", 0, theChatMessage.message);
+					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
+					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
+					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
+					printf("Parsing message request in slot %d --> %s.\n", 0, chatMessages[chatMessageIndex].message);
 					for(i = 0; i < 10; i++)
 					{
 						if (connections[i].status == CONN_LOGIN)

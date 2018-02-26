@@ -1,7 +1,35 @@
 <html>
 <head>
+	<style>
+		.chatTableHeader
+		{
+			font-weight: bold;
+			color: #0000aa;
+			border-bottom-style: solid;
+			border-bottom-width: 3px;
+		}
+		.chatTableBody0
+		{
+			color: #0000aa;
+			background-color: #eeeeff;
+			border-bottom-style: solid;
+			border-bottom-width: 1px;
+			border-bottom-color: #0000aa;
+		.chatTableBody1
+		{
+			color: #0000aa;
+			border-bottom-style: solid;
+			border-bottom-width: 1px;
+			border-bottom-color: #0000aa;
+		}
+		#chatSummary
+		{
+			width: 250px;
+		}
+	</style>
 <script language="javascript">
 var connection = null;
+var messageCounter = 0;
 
 
 var sendLogin = function()
@@ -32,13 +60,18 @@ var sendLogin = function()
 			 
 				var r = t.insertRow(-1);
 				var c = r.insertCell(-1);
+				c.className = "chatTableBody" + (messageCounter%2);
 				c.textContent = data.from;
 				
-				c = r.insertCell(-1);
-				c.textContent = data.time;
+				//c = r.insertCell(-1);
+				//c.className = "chatTableBody" + (messageCounter%2);
+				//c.textContent = data.time;
 
 				c = r.insertCell(-1);
+				c.className = "chatTableBody" + (messageCounter%2);
 				c.textContent = data.value;
+				
+				messageCounter++;
 			};
 		};
 		
@@ -77,7 +110,12 @@ var sendLogin = function()
 
 var sendMessage = function()
 {
-	connection.send('{"type":3, "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
+	if (gebi("inputText").value != "")
+	{
+		connection.send('{"type":3, "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
+		gebi("inputText").value = "";
+		gebi("inputText").focus();
+	}
 }
 
 var connectToMaster = function()
@@ -101,14 +139,24 @@ var gebi = function(id)
 		</tr>
 		<!-- TODO : Connecti to master type 2 with IP address -->
 		<tr>
-			<td><input type="text" id="inputText" /><input type="button" value="Send Message" id="sendTextButton" disabled onclick="sendMessage();"/></td>
+			<td><input type="text" maxlength="256" id="inputText" /><input type="button" value="Send Message" id="sendTextButton" disabled onclick="sendMessage();"/></td>
 		</tr>
 		<tr>
-			<td><table id="chatSummary"></table></td>
+			<td>
+			</td>
+			<td>
+				<table id="chatSummary">
+					<tr>
+						<td class="chatTableHeader">From</td>
+						<!--<td class="chatTableHeader">Time</td> -->
+						<td class="chatTableHeader">Message</td>
+					</tr>
+				</table>
+			</td>
 		</tr>
-		<tr>
+<!--		<tr>
 			<td><input type="text" id="masterAddress" value="192.168.0.200" /><input type="button" value="Connect To Master" onclick="connectToMaster();"/></td>
-		</tr>
+		</tr> -->
 	</table>
 </body>
 </html>

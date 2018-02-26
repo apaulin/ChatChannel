@@ -2,6 +2,12 @@
 #define __WEBSOCKET_SERVER_H__
 
 #define WS_MSG_MAX_SIZE 512
+#define WS_USERNAME_MAX_LENGTH 32
+#define WS_MAX_CONNECTIONS 10
+#define WS_MAX_QUEUED_MESSAGES 2
+#define WS_WEBSOCKET_PORT 8010
+
+
 typedef enum {
 	MSG_LOGIN = 1,
 	MSG_CONNECT_TO_MASTER,
@@ -22,7 +28,7 @@ typedef enum {
 typedef struct {
 	int index;
 	CONN_STATUS status;
-	char username[32];
+	char username[WS_USERNAME_MAX_LENGTH];
 	unsigned int numberOfText;
 	unsigned int lastMessageReceived;
 	struct lws *wsi;
@@ -32,8 +38,8 @@ typedef struct {
 typedef struct {
 	int id;
 	struct timespec time;
-	char from[32];
-	char message[256];
+	char from[WS_USERNAME_MAX_LENGTH];
+	char message[WS_MSG_MAX_SIZE];
 } chatMessage;
 
 

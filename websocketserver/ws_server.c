@@ -14,8 +14,8 @@ static struct lws_context *clientContext = NULL;
 static connectionInfo clientWebsocketStatus;
 
 
-static connectionInfo connections[10];
-static chatMessage chatMessages[10];
+static connectionInfo connections[WS_MAX_CONNECTIONS];
+static chatMessage chatMessages[WS_MAX_QUEUED_MESSAGES];
 static int chatMessageCounter = 0;
 static int chatMessageIndex = -1;
 
@@ -32,12 +32,13 @@ static int callback_http(
 {
 	int i=0;
 	int *connectionIndex = (int *)user;
-	char buffer[256];
+	char buffer[WS_MSG_MAX_SIZE];
+	int connectionAvailable = 0;
 	switch (reason) 
 	{
 		case LWS_CALLBACK_ESTABLISHED:
 			printf("New connection from Client \n");
-			for(i = 0; i < 10; i++)
+			for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 			{
 				if(connections[i].status == CONN_NONE)
 				{
@@ -48,6 +49,11 @@ static int callback_http(
 					connections[i].wsi = wsi;
 					break;
 				}
+			}
+			if (connectionAvailable == 0)
+			{
+				printf("Connection limit reached\n");
+				lws_close_reason(wsi, LWS_CLOSE_STATUS_POLICY_VIOLATION, NULL, 0);
 			}
 			break;
 		case LWS_CALLBACK_RECEIVE:
@@ -64,7 +70,7 @@ static int callback_http(
 			connections[*connectionIndex].status = CONN_NONE;
 			connections[*connectionIndex].wsi = NULL;
 			sprintf(buffer, "%s : has left the chat communication channel.", connections[*connectionIndex].username);
-			for(i = 0; i < 10; i++)
+			for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 			{
 				if(connections[i].status == CONN_LOGIN)
 				{
@@ -85,12 +91,12 @@ static int callback_http(
 
 void sendNextMessage(struct lws *wsi, connectionInfo *conn)
 {
-	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 	int size = 0;
 	
 	
-	chatMessage *cMsg = &chatMessages[conn->lastMessageReceived % 10];
+	chatMessage *cMsg = &chatMessages[conn->lastMessageReceived % WS_MAX_QUEUED_MESSAGES];
 	printf("Writing from %s : %d : %s\n", conn->username, conn->lastMessageReceived, cMsg->message);
 	conn->lastMessageReceived++;
 	
@@ -101,7 +107,7 @@ void sendNextMessage(struct lws *wsi, connectionInfo *conn)
 
 void sendMessage2(struct lws *wsi, const char *from, const char* msg, MSG_TYPE messageType)
 {
-	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 	int size = 0;	
 	struct timespec myTime;
@@ -113,12 +119,12 @@ void sendMessage2(struct lws *wsi, const char *from, const char* msg, MSG_TYPE m
 
 void sendNextMessageFromClientToServer(struct lws *wsi)
 {
-	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 	int size = 0;
 	
 	
-	chatMessage *cMsg = &chatMessages[clientWebsocketStatus.lastMessageReceived % 10];
+	chatMessage *cMsg = &chatMessages[clientWebsocketStatus.lastMessageReceived % WS_MAX_QUEUED_MESSAGES];
 	printf("Writing from %s : %d : %s\n", "Client to Master", clientWebsocketStatus.lastMessageReceived, cMsg->message);
 	clientWebsocketStatus.lastMessageReceived++;
 	
@@ -158,7 +164,7 @@ static int callback_client_http(
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
 			if (clientWebsocketStatus.status == CONN_INIT)
 			{
-				unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+				unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + WS_MSG_MAX_SIZE + LWS_SEND_BUFFER_POST_PADDING];
 				unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 				int size = sprintf((char *)text, "{\"type\":1,\"value\":\"%s\"}", "SlaveClient");
 				lws_write(wsi, text, size, LWS_WRITE_TEXT);
@@ -224,7 +230,7 @@ int main(int argc, char *argv[])
 	}
 		
 
-	for(i = 0 ; i < 10; i++)
+	for(i = 0 ; i < WS_MAX_CONNECTIONS; i++)
 	{
 		connections[i].index = -1;
 		connections[i].status = CONN_NONE;
@@ -242,7 +248,7 @@ int main(int argc, char *argv[])
 	clientWebsocketStatus.wsi = NULL;
 	
 	
-	for(i=0; i < 10; i++)
+	for(i=0; i < WS_MAX_QUEUED_MESSAGES; i++)
 	{
 		chatMessages[i].id = -1;
 		chatMessages[i].from[0] = 0;
@@ -259,15 +265,7 @@ int main(int argc, char *argv[])
 	printf("Starting WebSocket Server\n");
 	struct lws_context_creation_info contextInfo;
 	memset(&contextInfo, 0, sizeof(contextInfo));
-	if (argc == 2 && strcmp(argv[1], "master") == 0)
-	{
-		printf("Starting in server mode.\n");
-		contextInfo.port = 8020;
-	}
-	else
-	{
-		contextInfo.port = 8010;
-	}
+	contextInfo.port = WS_WEBSOCKET_PORT;
 	contextInfo.iface = NULL;
 	contextInfo.protocols = serverProtocols;
 	contextInfo.extensions = NULL;
@@ -348,17 +346,17 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 						value = json_object_get(root, "value");
 						const char *valueStr = json_string_value(value);
 						printf("Login with value %s\n", valueStr);
-						strncpy(connections[*connIndex].username, valueStr, 32);
+						strncpy(connections[*connIndex].username, valueStr, WS_USERNAME_MAX_LENGTH);
 						connections[*connIndex].status = CONN_LOGIN;
 						chatMessageIndex++;
 						connections[*connIndex].lastMessageReceived = chatMessageIndex;
-						chatMessageIndex = chatMessageIndex%10;
+						chatMessageIndex = chatMessageIndex%WS_MAX_QUEUED_MESSAGES;
 						chatMessages[chatMessageIndex].id = ++chatMessageCounter;
-						strncpy(chatMessages[chatMessageIndex].message, "***NEW CONNECTION***", 256);
-						strncpy(chatMessages[chatMessageIndex].from, valueStr, 32);
-						clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
+						strncpy(chatMessages[chatMessageIndex].message, "***NEW CONNECTION***", WS_MSG_MAX_SIZE);
+						strncpy(chatMessages[chatMessageIndex].from, valueStr, WS_USERNAME_MAX_LENGTH);
+						clock_gettime(CLOCK_REALTIME, &chatMessages[chatMessageIndex].time );
 						
-						for(i = 0; i < 10; i++)
+						for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 						{
 							if (connections[i].status == CONN_LOGIN)
 							{
@@ -375,12 +373,12 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					value = json_object_get(root, "value");
 					valueStr = json_string_value(value);
 					printf("Synching with Server %s\n", valueStr);
-					startWsClient(valueStr, 8010);
+					startWsClient(valueStr, WS_WEBSOCKET_PORT);
 					break;
 				case MSG_CHAT_MESSAGE:
 				case MSG_CHAT_PROPAGATE:
 					chatMessageIndex++;
-					chatMessageIndex = chatMessageIndex%10;
+					chatMessageIndex = chatMessageIndex%WS_MAX_QUEUED_MESSAGES;
 					chatMessages[chatMessageIndex].id = ++chatMessageCounter;
 					value = json_object_get(root, "value");
 					from = json_object_get(root, "from");
@@ -388,11 +386,11 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					//printf("Got %s\n", valueStr);
 					fromStr = json_string_value(from);
 					//printf("Got %s\n", fromStr);
-					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
-					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
+					strncpy(chatMessages[chatMessageIndex].message, valueStr, WS_MSG_MAX_SIZE);
+					strncpy(chatMessages[chatMessageIndex].from, fromStr, WS_USERNAME_MAX_LENGTH);
 					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
 					printf("Parsing message request in slot %d --> %s.\n", 0, chatMessages[chatMessageIndex].message);
-					for(i = 0; i < 10; i++)
+					for(i = 0; i < WS_MAX_CONNECTIONS; i++)
 					{
 						if (connections[i].status == CONN_LOGIN)
 						{

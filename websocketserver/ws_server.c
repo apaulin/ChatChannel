@@ -119,6 +119,7 @@ void sendNextMessageFromClientToServer(struct lws *wsi)
 	
 	
 	chatMessage *cMsg = &chatMessages[clientWebsocketStatus.lastMessageReceived % 10];
+	printf("Writing from %s : %d : %s\n", "Client to Master", clientWebsocketStatus.lastMessageReceived, cMsg->message);
 	clientWebsocketStatus.lastMessageReceived++;
 	
 	printf("Writing to %s : %s\n", "ClientServer", cMsg->message);
@@ -350,6 +351,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 						strncpy(connections[*connIndex].username, valueStr, 32);
 						connections[*connIndex].status = CONN_LOGIN;
 						chatMessageIndex++;
+						connections[*connIndex].lastMessageReceived = chatMessageIndex;
 						chatMessageIndex = chatMessageIndex%10;
 						chatMessages[chatMessageIndex].id = ++chatMessageCounter;
 						strncpy(chatMessages[chatMessageIndex].message, "***NEW CONNECTION***", 256);
@@ -458,6 +460,8 @@ int startWsClient(const char *serverIp, int serverPort)
 	printf("Connecting Client Websocket\n");
 	clientWebsocketStatus.wsi = lws_client_connect_via_info(&connectInfo);
 	clientWebsocketStatus.status = CONN_INIT;
+	clientWebsocketStatus.lastMessageReceived = chatMessageIndex + 1;
+
 	lws_callback_on_writable(clientWebsocketStatus.wsi);
 	
 	

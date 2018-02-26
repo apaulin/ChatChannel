@@ -9,8 +9,10 @@
 
 static void *wsMsgBuffer = NULL;
 static struct lws_context *clientContext = NULL;
-static struct lws *clientWebsocket = NULL;
-static CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
+//static struct lws *clientWebsocket = NULL;
+//static CONN_STATUS clientWebsocketStatus = CONN_DISCONNECTED; 
+static connectionInfo clientWebsocketStatus;
+
 
 static connectionInfo connections[10];
 static chatMessage chatMessages[10];
@@ -109,6 +111,21 @@ void sendMessage2(struct lws *wsi, const char *from, const char* msg, MSG_TYPE m
 	usleep(10000);
 }
 
+void sendNextMessageFromClientToServer(struct lws *wsi)
+{
+	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
+	unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
+	int size = 0;
+	
+	
+	chatMessage *cMsg = &chatMessages[clientWebsocketStatus.lastMessageReceived % 10];
+	clientWebsocketStatus.lastMessageReceived++;
+	
+	printf("Writing to %s : %s\n", "ClientServer", cMsg->message);
+	size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", MSG_CHAT_MESSAGE, cMsg->from, cMsg->message, (unsigned int)cMsg->time.tv_sec);
+	lws_write(wsi, text, size, LWS_WRITE_TEXT);
+	usleep(10000);
+}
 
 
 // This callback function is used when this MMR is the client of another radio.
@@ -135,20 +152,20 @@ static int callback_client_http(
 		case LWS_CALLBACK_CLOSED:
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			printf("Client Connection Closed\n");
-			clientWebsocketStatus = CONN_DISCONNECTED;
+			clientWebsocketStatus.status = CONN_DISCONNECTED;
 			break;
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
-			if (clientWebsocketStatus == CONN_INIT)
+			if (clientWebsocketStatus.status == CONN_INIT)
 			{
 				unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 256 + LWS_SEND_BUFFER_POST_PADDING];
 				unsigned char *text = &buf[LWS_SEND_BUFFER_PRE_PADDING];
 				int size = sprintf((char *)text, "{\"type\":1,\"value\":\"%s\"}", "SlaveClient");
 				lws_write(wsi, text, size, LWS_WRITE_TEXT);
-				clientWebsocketStatus = CONN_LOGIN;			
+				clientWebsocketStatus.status = CONN_LOGIN;			
 			}
 			else
 			{
-				//sendMessage(wsi, -1, 0, MSG_CHAT_PROPAGATE);
+				sendNextMessageFromClientToServer(wsi);
 			}
 			break;
 		case LWS_CALLBACK_GET_THREAD_ID:
@@ -215,6 +232,14 @@ int main(int argc, char *argv[])
 		connections[i].lastMessageReceived = 0;
 		connections[i].wsi = NULL;
 	}
+	
+	clientWebsocketStatus.index = -1;
+	clientWebsocketStatus.status = CONN_NONE;
+	clientWebsocketStatus.username[0] = 0;
+	clientWebsocketStatus.numberOfText = 0;
+	clientWebsocketStatus.lastMessageReceived = 0;
+	clientWebsocketStatus.wsi = NULL;
+	
 	
 	for(i=0; i < 10; i++)
 	{
@@ -358,9 +383,9 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 					value = json_object_get(root, "value");
 					from = json_object_get(root, "from");
 					valueStr = json_string_value(value);
-					printf("Got %s\n", valueStr);
+					//printf("Got %s\n", valueStr);
 					fromStr = json_string_value(from);
-					printf("Got %s\n", fromStr);
+					//printf("Got %s\n", fromStr);
 					strncpy(chatMessages[chatMessageIndex].message, valueStr, 256);
 					strncpy(chatMessages[chatMessageIndex].from, fromStr, 32);
 					clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &chatMessages[chatMessageIndex].time );
@@ -376,14 +401,14 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 						}
 						else
 						{
-							printf("Connection slot %d is in %d\n", i, connections[i].status);
+							//printf("Connection slot %d is in %d\n", i, connections[i].status);
 						}
 					}
 					printf("Exiting regular connection, checking connection to server. %d\n", (int)connIndex);
-					if (clientWebsocket != NULL && *connIndex != -1)
+					if (clientWebsocketStatus.wsi != NULL && *connIndex != -1)
 					{
 						printf("Forwarding message to master\n");
-						lws_callback_on_writable(clientWebsocket);
+						lws_callback_on_writable(clientWebsocketStatus.wsi);
 					}
 					else if (*connIndex == -1)
 					{
@@ -431,9 +456,9 @@ int startWsClient(const char *serverIp, int serverPort)
 	connectInfo.origin = "origin";
 	connectInfo.protocol = clientProtocols[0].name;
 	printf("Connecting Client Websocket\n");
-	clientWebsocket = lws_client_connect_via_info(&connectInfo);
-	clientWebsocketStatus = CONN_INIT;
-	lws_callback_on_writable(clientWebsocket);
+	clientWebsocketStatus.wsi = lws_client_connect_via_info(&connectInfo);
+	clientWebsocketStatus.status = CONN_INIT;
+	lws_callback_on_writable(clientWebsocketStatus.wsi);
 	
 	
 	return ret;

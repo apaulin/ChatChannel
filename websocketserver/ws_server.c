@@ -55,7 +55,7 @@ static int callback_http(
 			parseWsMessage((int *)user, (char *)input, len);
 			break;
 		case LWS_CALLBACK_SERVER_WRITEABLE:
-			printf("LWS_CALLBACK_SERVER_WRITEABLE\n");
+			//printf("LWS_CALLBACK_SERVER_WRITEABLE\n");
 			sendNextMessage(wsi, &connections[*connectionIndex]);
 			break;
 		case LWS_CALLBACK_CLOSED:
@@ -75,7 +75,7 @@ static int callback_http(
 		case LWS_CALLBACK_GET_THREAD_ID:
 			break;
 		default:
-			printf ("Callback http %d\n", reason);
+			//printf ("Callback http %d\n", reason);
 			break;
 	}
 	
@@ -91,9 +91,9 @@ void sendNextMessage(struct lws *wsi, connectionInfo *conn)
 	
 	
 	chatMessage *cMsg = &chatMessages[conn->lastMessageReceived % 10];
+	printf("Writing from %s : %d : %s\n", conn->username, conn->lastMessageReceived, cMsg->message);
 	conn->lastMessageReceived++;
 	
-	printf("Writing to %s : %s\n", conn->username, cMsg->message);
 	size = sprintf((char *)text, "{\"type\":%d, \"from\":\"%s\",\"value\":\"%s\", \"time\":%d}", MSG_CHAT_MESSAGE, cMsg->from, cMsg->message, (unsigned int)cMsg->time.tv_sec);
 	lws_write(wsi, text, size, LWS_WRITE_TEXT);
 	usleep(10000);
@@ -338,7 +338,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 		if (type != NULL)
 		{
 			type_int = json_integer_value(type);
-			printf("Type of command : %d : %s\n", type_int, (char *)wsMsgBuffer);
+			//printf("Type of command : %d : %s\n", type_int, (char *)wsMsgBuffer);
 			switch (type_int)
 			{
 				case MSG_LOGIN:
@@ -404,7 +404,7 @@ int parseWsMessage(int *connIndex, char *msg, int len)
 							//printf("Connection slot %d is in %d\n", i, connections[i].status);
 						}
 					}
-					printf("Exiting regular connection, checking connection to server. %d\n", (int)connIndex);
+					//printf("Exiting regular connection, checking connection to server. %d\n", (int)connIndex);
 					if (clientWebsocketStatus.wsi != NULL && *connIndex != -1)
 					{
 						printf("Forwarding message to master\n");

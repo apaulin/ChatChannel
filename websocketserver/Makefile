@@ -10,4 +10,4 @@ clean:
 	rm *.o
 	
 %.o: %.c $(HEADERS)
-	gcc -c $< -o $@
+	gcc -Wall -c $< -o $@

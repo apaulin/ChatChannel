@@ -48,7 +48,8 @@ var sendLogin = function()
 		connection = new WebSocket('wss://' + ip + wssPort + '/websocket');
 		connection.onopen = function () {
 			console.log("Connected");
-			connection.send('{"type":1, "value":"'+ gebi("loginText").value +'"}'); 
+			
+			connection.send('{"type":1, "uid": 0, "extras": "", "value":"'+ gebi("loginText").value +'"}'); 
 			gebi("sendTextButton").disabled = false;
 			gebi("loginButton").disabled = true;
 			gebi("loginText").disabled = true;
@@ -112,7 +113,7 @@ var sendMessage = function()
 {
 	if (gebi("inputText").value != "")
 	{
-		connection.send('{"type":3, "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
+		connection.send('{"type":3, "uid": 0, "extras": "", "value":"' + gebi("inputText").value + '"}');
 		gebi("inputText").value = "";
 		gebi("inputText").focus();
 	}

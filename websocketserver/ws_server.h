@@ -9,6 +9,7 @@
 
 
 typedef enum {
+	MSG_UNKNOWN = 0,
 	MSG_LOGIN = 1,
 	MSG_CONNECT_TO_MASTER,
 	MSG_CHAT_MESSAGE,
@@ -21,32 +22,51 @@ typedef enum {
 	CONN_INIT = 1,
 	CONN_LOGIN,
 	CONN_END,
+	CONN_SLAVE,
 	CONN_NONE
 } CONN_STATUS;
 
+
+
+typedef struct CHATMESSAGE{
+	int index;
+	int number;
+	struct timespec time;
+	char from[WS_USERNAME_MAX_LENGTH];
+	char message[WS_MSG_MAX_SIZE];
+	struct CHATMESSAGE *next;
+} chatMessage;
 
 typedef struct {
 	int index;
 	CONN_STATUS status;
 	char username[WS_USERNAME_MAX_LENGTH];
-	unsigned int numberOfText;
-	unsigned int lastMessageReceived;
+	int uid;
+	chatMessage *lastMessageProcessed;
+	chatMessage *lastMessageSent;
 	struct lws *wsi;
 
 } connectionInfo;
 
 typedef struct {
-	int id;
-	struct timespec time;
-	char from[WS_USERNAME_MAX_LENGTH];
-	char message[WS_MSG_MAX_SIZE];
-} chatMessage;
+	int index;
+	MSG_TYPE type;
+	connectionInfo *connection;
+	int uid;
+	char value[WS_MSG_MAX_SIZE];
+	char extras[WS_MSG_MAX_SIZE]; 
+} requestStruct;
 
 
-int parseWsMessage(int *userIndex, char *msg, int len);
+int parseWsMessage(connectionInfo *connInfo, char *msg, int len);
+int parseRequest(char *msg, int len, connectionInfo *connInfo, requestStruct *req);
 int startWsClient(const char *serverIp, int serverPort);
 void sendNextMessage(struct lws *wsi, connectionInfo *conn);
 void sendMessage2(struct lws *wsi, const char *from, const char* msg, MSG_TYPE messageType);
+requestStruct* getEmptyRequest();
+void addLocalChatMessage(connectionInfo *, const char *msg);
+void cleanRequest(requestStruct *req);
+void processMessages();
 
 
 

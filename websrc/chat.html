@@ -31,6 +31,30 @@
 var connection = null;
 var messageCounter = 0;
 
+var MSG_UNKNOWN = 0,
+	 MSG_LOGIN = 1,
+	 MSG_CONNECT_TO_MASTER = 2,
+	 MSG_CHAT_MESSAGE = 3,
+	 MSG_CHAT_PROPAGATE = 4,
+	 MSG_CTL_MESSAGE = 5;
+
+var REQ_UNKNOWN = -1,
+	REQ_OK = 0,
+	REQ_CONNECTION_TO_MASTER_FAILED = 1,
+	REQ_MASTER_CANNOT_CONNECT_TO_MASTER = 2,
+	REQ_ALREADY_CONNECTED_TO_MASTER = 3,
+	REQ_CONNECTION_TO_LOCAL_SERVER_LOST = 4,
+	REQ_EMPTY_USERNAME = 5;
+
+
+var init = function()
+{
+	gebi("connecToMasterButton").disabled = true;
+	gebi("masterAddress").disabled = true;
+	gebi("inputText").disabled = true;
+	gebi("sendTextButton").disabled = true;
+}
+
 
 var sendLogin = function()
 {
@@ -45,14 +69,28 @@ var sendLogin = function()
 	//alert(ip);
 	if (gebi("loginText").value != "")
 	{
-		connection = new WebSocket('wss://' + ip + wssPort + '/websocket');
+		try
+		{
+			addLine("Web GUI", REQ_OK, "Connecting to local chat service...");
+			connection = new WebSocket('wss://' + ip + wssPort + '/websocket');
+			gebi("loginButton").disabled = true;
+			setTimeout("checkConnection();", 10000);
+		}
+		catch(e)
+		{
+			addLine("Web GUI", REQ_CONNECTION_TO_LOCAL_SERVER_LOST, "Cannot connect to chat service.");
+		}
 		connection.onopen = function () {
 			console.log("Connected");
 			
-			connection.send('{"type":1, "uid": 0, "extras": "", "value":"'+ gebi("loginText").value +'"}'); 
-			gebi("sendTextButton").disabled = false;
-			gebi("loginButton").disabled = true;
+			connection.send('{"type":1, "code": 0, "extras": "", "value":"'+ gebi("loginText").value +'"}'); 
 			gebi("loginText").disabled = true;
+			gebi("sendTextButton").disabled = false;
+			gebi("inputText").disabled = false;
+			gebi("masterAddress").disabled = false;
+			gebi("connecToMasterButton").disabled = false;
+
+			// Processing message received from Local Webserver
 			connection.onmessage = function (message) {
 			  console.log("Got message", message.data);
 			   
@@ -64,56 +102,94 @@ var sendLogin = function()
 				c.className = "chatTableBody" + (messageCounter%2);
 				c.textContent = data.from;
 				
-				//c = r.insertCell(-1);
-				//c.className = "chatTableBody" + (messageCounter%2);
-				//c.textContent = data.time;
+				c = r.insertCell(-1);
+				c.className = "chatTableBody" + (messageCounter%2);
+				c.textContent = data.code;
 
 				c = r.insertCell(-1);
 				c.className = "chatTableBody" + (messageCounter%2);
 				c.textContent = data.value;
 				
 				messageCounter++;
+				
+				if ((data.type == MSG_CONNECT_TO_MASTER && data.code == REQ_OK) || 
+					data.code == REQ_MASTER_CANNOT_CONNECT_TO_MASTER ||
+					data.code == REQ_ALREADY_CONNECTED_TO_MASTER)
+				{
+					gebi("connecToMasterButton").disabled = true;
+					gebi("masterAddress").disabled = true;
+					if (data.code == REQ_MASTER_CANNOT_CONNECT_TO_MASTER)
+					{
+						addLine("Local Server", REQ_MASTER_CANNOT_CONNECT_TO_MASTER, "This is the Master Server");
+					}
+					else if (data.code == REQ_ALREADY_CONNECTED_TO_MASTER)
+					{
+						addLine("Local Server", REQ_ALREADY_CONNECTED_TO_MASTER, "The local srever is already connected to the Master Server");
+
+					}
+				}
+			};
+			
+			connection.onerror = function(e)
+			{
+				addLine("Web GUI", REQ_CONNECTION_TO_LOCAL_SERVER_LOST, "Cannot connect to chat service.");
+				
+			}
+			
+			connection.onclose = function(e) {
+				addLine("Web GUI", REQ_CONNECTION_TO_LOCAL_SERVER_LOST, "The connection to the local server was lost.  Please refresh the page.");
+				gebi("sendTextButton").disabled = true;
+				gebi("loginButton").disabled = true;
+				gebi("loginText").disabled = true;
+				gebi("inputText").disabled = true;
+				gebi("connecToMasterButton").disabled = true;
+				gebi("masterAddress").disabled = true;
 			};
 		};
 		
 	}
 	else
 	{
-		alert("Please enter a name before login in.");
+		addLine("Web GUI", REQ_EMPTY_USERNAME, "Cannot login without a username.");
 	}
 
 };
 
+var checkConnection = function()
+{
+	if (connection.readyState != 1)
+	{
+		addLine("Web GUI", REQ_CONNECTION_TO_LOCAL_SERVER_LOST, "Cannot connect to chat service. (Refresh page to try again.)");
+	}
+}
 
-// Handle all messages through this callback
-  
-/*
-  switch(data.type) {
-    case 1:
-      onLogin(data.success);
-      break;
-    case "offer":
-      onOffer(data.offer, data.name);
-      break;
-    case "answer":
-      onAnswer(data.answer);
-      break;
-    case "candidate":
-      onCandidate(data.candidate);
-      break;
-    case "leave":
-      onLeave();
-      break;
-    default:
-      break;
-  }
-  */
+var addLine = function(from, code, value)
+{
+	var t  = gebi("chatSummary");
+ 
+	var r = t.insertRow(-1);
+	var c = r.insertCell(-1);
+	c.className = "chatTableBody" + (messageCounter%2);
+	c.textContent = from;
+	
+	c = r.insertCell(-1);
+	c.className = "chatTableBody" + (messageCounter%2);
+	c.textContent = code;
+
+	c = r.insertCell(-1);
+	c.className = "chatTableBody" + (messageCounter%2);
+	c.textContent = value;
+	
+	messageCounter++;
+}
+
 
 var sendMessage = function()
 {
 	if (gebi("inputText").value != "")
 	{
-		connection.send('{"type":3, "uid": 0, "extras": "", "value":"' + gebi("inputText").value + '"}');
+		connection.send('{"type":3, "code": 0, "extras": "", "from":"' + gebi("loginText").value + '", "value":"' + gebi("inputText").value + '"}');
+		addLine(gebi("loginText").value, 0, gebi("inputText").value);
 		gebi("inputText").value = "";
 		gebi("inputText").focus();
 	}
@@ -121,7 +197,12 @@ var sendMessage = function()
 
 var connectToMaster = function()
 {
-	connection.send('{"type":2, "value":"' + gebi("masterAddress").value + '"}');
+	var msg = new Object();
+	msg.type = 2;
+	msg.code = 0;
+	msg.extras = "";
+	msg.value = gebi("masterAddress").value;
+	connection.send(JSON.stringify(msg, null, 2));
 }
 
 var gebi = function(id)
@@ -133,7 +214,7 @@ var gebi = function(id)
 
 </script>
 </head>
-<body>
+<body onload="init();">
 	<table>
 		<tr>
 			<td><input type="text" id="loginText" /><input type="button" value="Login" id="loginButton" onclick="sendLogin();"/></td>
@@ -149,15 +230,15 @@ var gebi = function(id)
 				<table id="chatSummary">
 					<tr>
 						<td class="chatTableHeader">From</td>
-						<!--<td class="chatTableHeader">Time</td> -->
+						<td class="chatTableHeader">Code</td>
 						<td class="chatTableHeader">Message</td>
 					</tr>
 				</table>
 			</td>
 		</tr>
-<!--		<tr>
-			<td><input type="text" id="masterAddress" value="192.168.0.200" /><input type="button" value="Connect To Master" onclick="connectToMaster();"/></td>
-		</tr> -->
+		<tr>
+			<td><input type="text" id="masterAddress" value="" /><input type="button" id="connecToMasterButton" value="Connect To Master" onclick="connectToMaster();"/></td>
+		</tr>
 	</table>
 </body>
 </html>
